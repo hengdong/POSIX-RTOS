@@ -28,6 +28,9 @@ struct mq
     struct mq_attr      mq_attr;
     
     sem_t               sem;
+
+    pthread_mutex_t     r_mutex;
+    pthread_mutex_t     w_mutex;
 };
 typedef struct mq mq_t;
 
@@ -35,8 +38,7 @@ typedef struct mq mq_t;
 struct mq_msg
 {
     size_t              msg_size;
-    int                 used;            
-};
+    int                 used;
 typedef struct mq_msg mq_msg_t;
 
 /******************************************************************************/
@@ -59,33 +61,29 @@ mqd_t mq_open (const char *name, int flag, ...)
     mq_t *mq;
     char *buffer;
   
-    /* check name */
-    if (!name)
-        return -1;
-    
-    /* check flag */
-    if (!(flag & O_CREAT))
-        return -1;
+    /* check name and flag */
+    if (!name || !(flag & O_CREAT))
+    	goto check_failed;
     
     /* check mode */
     va_start(args, flag);   
     mode = (mode_t *)args; 
     if (*mode != flag)
-        return -1;
+        goto check_failed;
   
     /* check attribute */
     va_arg(args, struct mq_attr *);
     mq_attr = (struct mq_attr *)(*(int *)args);
     if ((mq_attr->mq_maxmsg * mq_attr->mq_msgsize) > (MQ_MSG_SIZE_MAX * MQ_MSG_NUM_MAX))
-        return -1;
+        goto check_failed;
     
     /* get message buffer */
     if (!(buffer = calloc((sizeof(mq_msg_t) + mq_attr->mq_msgsize) * mq_attr->mq_maxmsg)))
-        return -1;    
+        goto check_failed;
     
     /* get message queue object buffer */
     if (!(mq = calloc(sizeof(mq_t))))
-        return -1;
+    	goto alloc_buf_failed;
      
     /* initialize the message queue */
     mq->mq_pbuf = buffer;
@@ -97,10 +95,21 @@ mqd_t mq_open (const char *name, int flag, ...)
     
     if (!(mq->mq_attr.mq_flags & O_NONBLOCK))
         if (sem_init(&mq->sem, 0, mq->mq_attr.mq_maxmsg))
-            return -1;
+            goto sem_init_failed;
+
+    pthread_mutex_init(&mq->r_mutex);
+    pthread_mutex_init(&mq->w_mutex);
 
     /* return the message queue address */
     return (mqd_t)mq;
+
+sem_init_failed:
+	free(mq);
+alloc_buf_failed:
+	free(buffer);
+check_failed:
+
+	return EINVAL;
 }
 
 /*
@@ -118,15 +127,17 @@ ssize_t mq_send (mqd_t mqdes, const char *msg_ptr, size_t msg_len, unsigned int 
     mq_t *mq = (mq_t *)mqdes;
     mq_msg_t *mq_msg;
     char *send_ptr;
-    ssize_t ret;
+    ssize_t ret = -EINVAL;
     
+    pthread_mutex_lock(&mq->w_mutex);
+
     /* check current message numbers at the message queue */
     if (mq->mq_attr.mq_curmsgs >= mq->mq_attr.mq_maxmsg)
-        return -1;
+        goto check_failed;
     
     /* check the size of current message to be sent */
     if (msg_len > mq->mq_attr.mq_msgsize)
-        return -1;
+    	goto check_failed;
     
     /* get send message point */
     mq_msg = (mq_msg_t *)mq->send_ptr;
@@ -151,13 +162,18 @@ ssize_t mq_send (mqd_t mqdes, const char *msg_ptr, size_t msg_len, unsigned int 
         mq_msg->used = 1;
     }
     else
-        ret = -1;
+    	goto check_failed;
     
     /* post a semaphore to the receive thread */
     if (!(mq->mq_attr.mq_flags & O_NONBLOCK))
         sem_post(&mq->sem);
   
-    return ret;
+    ret = 0;
+
+check_failed:
+	pthread_mutex_unlock(&mq->w_mutex);
+
+	return ret;
 }
 
 /*
@@ -177,13 +193,15 @@ ssize_t mq_receive(mqd_t mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg
     char *recv_ptr;
     ssize_t ret;
   
+    pthread_mutex_lock(&mq->r_mutex);
+
     /* wait until receive buffer is not empty */
     if (!(mq->mq_attr.mq_flags & O_NONBLOCK))
         sem_wait(&mq->sem);
     
     /* check current message numbers at the message queue */
     if (!mq->mq_attr.mq_curmsgs)
-        return -1;
+    	goto check_failed;
     
     /* get receive message point */
     mq_msg = (mq_msg_t *)mq->recv_ptr;
@@ -207,8 +225,11 @@ ssize_t mq_receive(mqd_t mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg
         mq_msg->used = 0;
     }
     else
-        ret = -1;  
+    	goto check_failed;
     
+check_failed:
+    pthread_mutex_unlock(&mq->r_mutex);
+
     return ret;
 }
 
