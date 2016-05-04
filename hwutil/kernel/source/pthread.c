@@ -44,10 +44,10 @@ int pthread_setname_np(pthread_t thread, const char *name) {
 }
 
 /*
- * pthread_attr_setstacksize - the function will set the stack addr point and 
- *                             the stack size of the pthread 
+ * pthread_attr_setstacksize - the function will set the stack address point and
+ *                             the stack size of the thread
  *
- * @param attr the thread atrribute point
+ * @param attr the thread attribute point
  * @param stack_addr the stack address point
  * @param stack_size the stack size
  *
@@ -71,9 +71,9 @@ int pthread_attr_setstack (pthread_attr_t *RESTRICT attr,
 
 /*
  * pthread_attr_setstacksize - the function will set the stack size of
- *                             the pthread 
+ *                             the thread
  *
- * @param attr the thread atrribute point
+ * @param attr the thread attribute point
  * @param stack_size the stack size
  *
  * @return the result
@@ -94,7 +94,7 @@ int pthread_attr_setstacksize(pthread_attr_t *RESTRICT attr,
  * pthread_attr_setschedparam - the function will set the paramer of the thread
  *                              of the scheduler
  *
- * @param attr the thread atrribute point
+ * @param attr the thread attribute point
  * @param param the paramer point of the thread
  *
  * @return the result
@@ -121,10 +121,10 @@ int pthread_attr_setschedparam(pthread_attr_t *RESTRICT attr,
 }
 
 /*
- * __pthread_attr_check - the function will check if the thread atrribute 
+ * __pthread_attr_check - the function will check if the thread attribute
  *                        is legal
  *
- * @param pthread_attr the thread atrribute point
+ * @param pthread_attr the thread attribute point
  *
  * @return the result
  */
@@ -194,7 +194,7 @@ void __pthread_int_exit_entry(void *arg) {
 /*
  * __pthread_create - the function will create a physics thread  
  *
- * @param pthread_attr the thread atrribute point
+ * @param pthread_attr the thread attribute point
  * @param start_routine the usr thread entry
  * @param arg the user point
  *
@@ -329,7 +329,8 @@ int __pthread_int_init (os_pthread_t *pthread,
  *
  * @return the result
  */
-int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr) {
+int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr)
+{
 	mutex->own_thread = NULL;
 
 	list_init(&mutex->wait_list);

@@ -121,7 +121,7 @@ int sem_post (sem_t* sem)
     if (sem->value < sem->init_value)
         ++sem->value;
     
-    /* wakeup one thread in the wait queue */
+    /* wake up one thread in the wait queue */
     LIST_FOR_EACH_HEAD_NEXT(thread_wait,
                             &sem->wait_list,
                             os_pthread_t,
@@ -131,8 +131,6 @@ int sem_post (sem_t* sem)
         sched_run();
         break;
     }
-    
-    CONTROLLER_DEBUG(1, ("p2"));
     
     hw_interrupt_recover(temp);
           

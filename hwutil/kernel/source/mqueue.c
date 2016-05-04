@@ -44,9 +44,9 @@ typedef struct mq_msg mq_msg_t;
 /*
  * mq_open - open a message queue
  *
- * @param name    the name of the messagequeue
- * @param flag    the flag of the openning attribute of the message queue
- * @param mode    the mode of the openning attribute of the message queue
+ * @param name    the name of the message queue
+ * @param flag    the flag of the attribute of the message queue
+ * @param mode    the mode of the attribute of the message queue
  * @param mq_attr the attribute of the message queue 
  *
  * @return the result
@@ -63,11 +63,9 @@ mqd_t mq_open (const char *name, int flag, ...)
     if (!name)
         return -1;
     
-    /* chack flag */
-/*
+    /* check flag */
     if (!(flag & O_CREAT))
         return -1;
-*/
     
     /* check mode */
     va_start(args, flag);   
@@ -81,15 +79,15 @@ mqd_t mq_open (const char *name, int flag, ...)
     if ((mq_attr->mq_maxmsg * mq_attr->mq_msgsize) > (MQ_MSG_SIZE_MAX * MQ_MSG_NUM_MAX))
         return -1;
     
-    /* malloc message buffer */
+    /* get message buffer */
     if (!(buffer = calloc((sizeof(mq_msg_t) + mq_attr->mq_msgsize) * mq_attr->mq_maxmsg)))
         return -1;    
     
-    /* malloc message queue */
+    /* get message queue object buffer */
     if (!(mq = calloc(sizeof(mq_t))))
         return -1;
      
-    /* init the message queue */
+    /* initialize the message queue */
     mq->mq_pbuf = buffer;
     memcpy(&mq->mq_attr, mq_attr, sizeof(struct mq_attr));
     mq->send_ptr = mq->recv_ptr = mq->mq_pbuf;
@@ -155,7 +153,7 @@ ssize_t mq_send (mqd_t mqdes, const char *msg_ptr, size_t msg_len, unsigned int 
     else
         ret = -1;
     
-    /* post a sem to the recv thread */
+    /* post a semaphore to the receive thread */
     if (!(mq->mq_attr.mq_flags & O_NONBLOCK))
         sem_post(&mq->sem);
   
@@ -163,12 +161,12 @@ ssize_t mq_send (mqd_t mqdes, const char *msg_ptr, size_t msg_len, unsigned int 
 }
 
 /*
- * mq_receive - recieve a message from themessage queue
+ * mq_receive - receive a message from the message queue
  *
  * @param mqdes     the handle oft he message queue
- * @param msg_ptr   recieve message point
- * @param msg_len   recieve message length
- * @param msg_prio  recieve message priority
+ * @param msg_ptr   receive message point
+ * @param msg_len   receive message length
+ * @param msg_prio  receive message priority
  *
  * @return the result
  */
@@ -179,7 +177,7 @@ ssize_t mq_receive(mqd_t mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg
     char *recv_ptr;
     ssize_t ret;
   
-    /* wait until recv buffer is not empty */
+    /* wait until receive buffer is not empty */
     if (!(mq->mq_attr.mq_flags & O_NONBLOCK))
         sem_wait(&mq->sem);
     
@@ -187,7 +185,7 @@ ssize_t mq_receive(mqd_t mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg
     if (!mq->mq_attr.mq_curmsgs)
         return -1;
     
-    /* get recv message point */
+    /* get receive message point */
     mq_msg = (mq_msg_t *)mq->recv_ptr;
     /* check if send buffer is free */
     if (mq_msg->used)
@@ -205,7 +203,7 @@ ssize_t mq_receive(mqd_t mqdes, char *msg_ptr, size_t msg_len, unsigned int *msg
         
         ret = mq_msg->msg_size;
         
-        /* make the buffer is recved */
+        /* make the buffer is received */
         mq_msg->used = 0;
     }
     else

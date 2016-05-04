@@ -42,7 +42,7 @@ typedef struct heap_mem heap_mem_t;
 
 /*@{*/
 
-/* malloc mutex */
+/* global heap mutex */
 NO_INIT static pthread_mutex_t heap_mem_mutex;
 
 NO_INIT static size_t mem_total_size;
@@ -88,7 +88,7 @@ void heap_mem_init(phys_addr_t begin_addr, phys_addr_t end_addr)
     phys_addr_t align_begin_addr = ALIGN(begin_addr);
     phys_addr_t align_end_addr = ALIGN(end_addr);
     
-    if ( (align_end_addr - align_begin_addr) > (2 * sizeof(heap_mem_t) + MALLOC_MIN_SIZE) )
+    if ((align_end_addr - align_begin_addr) > (2 * sizeof(heap_mem_t) + MALLOC_MIN_SIZE))
     {
         mem_total_size = align_end_addr - align_begin_addr - 2 * sizeof(heap_mem_t);
     }
@@ -100,13 +100,16 @@ void heap_mem_init(phys_addr_t begin_addr, phys_addr_t end_addr)
     heap_mem_begin = (heap_mem_t *)align_begin_addr;
     heap_mem_end   = (heap_mem_t *)(align_end_addr - sizeof(heap_mem_t));
     
-    MALLOC_DEBUG(("Init heap memory addr from 0x%8x to 0x%8x. total is %d=%dk.\r\n", heap_mem_begin, heap_mem_end, mem_total_size, mem_total_size / 1024));
+    MALLOC_DEBUG(("Init heap memory addr from 0x%8x to 0x%8x. total is %d=%dk.\r\n",
+    		heap_mem_begin,
+    		heap_mem_end,
+    		mem_total_size, mem_total_size / 1024));
     
     list_init(&heap_mem_begin->list);
     heap_mem_begin->used = false;
     
     list_init(&heap_mem_end->list);
-    heap_mem_end->used   = true;
+    heap_mem_end->used = true;
         
     list_insert_head(&heap_mem_begin->list, &heap_mem_end->list);
     
@@ -126,7 +129,7 @@ void heap_mem_init(phys_addr_t begin_addr, phys_addr_t end_addr)
  *
  * @param size the memory size
  *
- * @return point of the memory base addr 
+ * @return point of the memory base address
  */
 void *malloc(size_t size)
 {   
@@ -147,9 +150,11 @@ void *malloc(size_t size)
     
     pthread_mutex_lock(&heap_mem_mutex);
     
-    LIST_FOR_EACH_ENTRY_FROM_PTR(mem_ptr, heap_mem_free, heap_mem_end, heap_mem_t, list)
+    LIST_FOR_EACH_ENTRY_FROM_PTR(mem_ptr,
+    		heap_mem_free, heap_mem_end, heap_mem_t, list)
     {
-        size_t mem_len = (size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) - (size_t)mem_ptr - sizeof(heap_mem_t);
+        size_t mem_len = (size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) -
+        		(size_t)mem_ptr - sizeof(heap_mem_t);
         
         if ((false == mem_ptr->used) && mem_len > size)
         {
@@ -167,8 +172,13 @@ void *malloc(size_t size)
             
             mem_used_size += (size + sizeof(heap_mem_t));
             
-            MALLOC_DEBUG(("malloc addr is 0x%8x, real addr start 0x%8x - 0x%8x.", (size_t)mem_ptr + sizeof(heap_mem_t), (size_t)mem_ptr, (size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) - 1));
-            MALLOC_DEBUG(("alloc memory is %d, totally use memory is %d.\r\n", (size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) - (size_t)mem_ptr, mem_used_size));
+            MALLOC_DEBUG(("malloc addr is 0x%8x, real addr start 0x%8x - 0x%8x.",
+            		(size_t)mem_ptr + sizeof(heap_mem_t),
+            		(size_t)mem_ptr,
+            		(size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) - 1));
+            MALLOC_DEBUG(("alloc memory is %d, totally use memory is %d.\r\n",
+            		(size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) - (size_t)mem_ptr,
+            		mem_used_size));
             
             if (heap_mem_free == mem_ptr)
             {
@@ -195,7 +205,7 @@ void *malloc(size_t size)
  *
  * @param size the memory size
  *
- * @return point of the memory base addr 
+ * @return point of the memory base address
  */
 void *calloc(size_t size)
 {
@@ -219,7 +229,7 @@ void free(void *mem)
     heap_mem_t *prev_mem_ptr, *next_mem_ptr;
     size_t size;
   
-    /* make sure the memory is meanning */
+    /* make sure the memory is meaning */
     if (NULL == mem)
         return ;
     
@@ -234,7 +244,7 @@ void free(void *mem)
        
     ASSERT_KERNEL(mem_ptr->used == true);
     
-    /* lock the momery */
+    /* lock the memory */
     pthread_mutex_lock(&heap_mem_mutex);
 
     /* free the memory block */
@@ -250,13 +260,13 @@ void free(void *mem)
         next_mem_ptr = LIST_HEAD_ENTRY(&next_mem_ptr->list, heap_mem_t, list);
     }
     
-    /* if the prev block is free, delete the current block */
+    /* if the previous block is free, delete the current block */
     prev_mem_ptr = LIST_TAIL_ENTRY(&mem_ptr->list, heap_mem_t, list);
     if (false == prev_mem_ptr->used)
     {
         list_remove_node(&mem_ptr->list);
         
-        /* free block set the point to prev block */
+        /* free block set the point to previous block */
         __free_mem = prev_mem_ptr;
     }
     else
@@ -268,9 +278,17 @@ void free(void *mem)
           
     mem_used_size -= size;
     
-    MALLOC_DEBUG(("free addr is 0x%8x, real addr start 0x%8x - 0x%8x.", (size_t)mem_ptr + sizeof(heap_mem_t), (size_t)mem_ptr, (size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) - 1));
-    MALLOC_DEBUG(("free memory is %d, totally use memory is %d.", (size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) - (size_t)mem_ptr, mem_used_size));
-    MALLOC_DEBUG(("memory address is 0x%8x - 0x%8x. free is 0x%8x.\r\n", (size_t)prev_mem_ptr, (size_t)next_mem_ptr, (size_t)heap_mem_free));
+    MALLOC_DEBUG(("free addr is 0x%8x, real addr start 0x%8x - 0x%8x.",
+    		(size_t)mem_ptr + sizeof(heap_mem_t),
+    		(size_t)mem_ptr,
+    		(size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) - 1));
+    MALLOC_DEBUG(("free memory is %d, totally use memory is %d.",
+    		(size_t)LIST_HEAD_ENTRY(&mem_ptr->list, heap_mem_t, list) - (size_t)mem_ptr,
+    		mem_used_size));
+    MALLOC_DEBUG(("memory address is 0x%8x - 0x%8x. free is 0x%8x.\r\n",
+    		(size_t)prev_mem_ptr,
+    		(size_t)next_mem_ptr,
+    		(size_t)heap_mem_free));
     
     pthread_mutex_unlock(&heap_mem_mutex);
 }
@@ -283,6 +301,7 @@ static void ifmem(struct shell_dev *shell_dev)
                                                                   "total", 
                                                                   "used",
                                                                   "free");
+
     shell_printk(shell_dev, "\r\n          %-10s%-10d%-10d%-10d", "heap",
                                                                    tmem, 
                                                                    mem_used_size, 

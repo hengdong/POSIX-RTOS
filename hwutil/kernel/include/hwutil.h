@@ -46,7 +46,7 @@
 #endif
     
 #ifndef SCHED_CYCLE
-    #define SCHED_CYCLE 1000
+    #define SCHED_PERIOD 1000
 #endif
 
 #endif

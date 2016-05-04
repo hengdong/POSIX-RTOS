@@ -16,11 +16,11 @@
 
 /*@{*/
 
-#if 0
-#define SCHEDULER_DEBUG( x )     printk x
-#else
-#define SCHEDULER_DEBUG( x )
-#endif
+#define SCHED_DEBUG_LEVEL 0
+#define SCHED_DEBUG_ENABLE 0
+#define SCHED_DEBUG(level, ...) \
+    if (level > SCHED_DEBUG_LEVEL) \
+        printk(__VA_ARGS__);
 
 #define SCHEDULER_IS_LOCKED      1
 #define SCHEDULER_IS_UNLOCKED    0
@@ -28,12 +28,12 @@
 /******************************************************************************/
 
 #define SCHED_LOCK_PROC() \
-            if (SCHEDULER_IS_LOCKED == sched.locked) \
-                return;
+    if (SCHEDULER_IS_LOCKED == sched.locked) \
+        return;
 
 /******************************************************************************/
 
-/* CPU usage structure dscription */
+/* CPU usage structure description */
 struct usage
 {
     /* ticks for a minute */
@@ -46,7 +46,7 @@ struct usage
     os_u16              usage;
 };
 
-/* sheduler structure dscription */
+/* scheduler structure description */
 struct sched
 {
     os_u32              thread_ready_group;
@@ -78,18 +78,17 @@ NO_INIT os_u32 interrupt_to_thread KERNEL_SECTION;
 /*@{*/
 
 /**
-  * sched_get_highest_ready_group - This function will get the highest priority 
-  *                                 thread
-  *
-  * @param read_group the read threads record bit goupe
-  *
-  * @return the highest priority thread number
-  */
-INLINE os_u32 sched_get_highest_ready_group(os_u32 read_group)
+ * This function will get the highest priority thread
+ *
+ * @param read_group the read threads record bit group
+ *
+ * @return thread number which has the highest priority
+ */
+INLINE os_u16 sched_get_highest_ready_group(os_u32 read_group)
 {
-    os_u32 offset = 0;
-    /* sheduler thread priority remap table */
-    STATIC OS_RO os_u8 scheduler_priority_remap_table[OS_U8_MAX + 1] = 
+	os_u16 offset = 0;
+    /* scheduler thread priority mapped table */
+    STATIC OS_RO os_u8 sched_priority_remap_table[OS_U8_MAX + 1] =
     {
         0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
     
@@ -129,33 +128,33 @@ INLINE os_u32 sched_get_highest_ready_group(os_u32 read_group)
         offset = 8;
     }
     
-    return scheduler_priority_remap_table[read_group] + offset;
+    return sched_priority_remap_table[read_group] + offset;
 }
 
 /**
-  * sched_start - This function will start the operation system scheduler
-  */
+ * This function will start the operation system scheduler
+ */
 void sched_start(void)
 {
     extern void hw_context_switch_to(phys_reg_t sp);
   
     os_u32 thread_ready_group_num = sched_get_highest_ready_group(sched.thread_ready_group);
     
-    scheduler.current_thread = LIST_HEAD_ENTRY(&sched.thread_ready_table[thread_ready_group_num],
-                                               os_pthread_t,
-                                               list);
+    sched.current_thread = LIST_HEAD_ENTRY(&sched.thread_ready_table[thread_ready_group_num],
+                                           os_pthread_t,
+                                           list);
     
     hw_context_switch_to((phys_reg_t)&sched.current_thread->sp);
 }
 
 /**
-  * sched_run - This function will start the operation system sheduler
-  */
-void sched_run(void)
+ * This function will start the operation system scheduler
+ */
+void sched_switch_thread(void)
 {
+    phys_reg_t temp;
     os_u32 thread_ready_group_num;
     os_pthread_t *to_thread;
-    phys_reg_t temp;  
     extern void hw_context_switch(phys_reg_t from_thread, phys_reg_t to_thread);
     
     /* suspend the hardware interrupt for the preparing for context switching */
@@ -171,72 +170,76 @@ void sched_run(void)
     if (to_thread != sched.current_thread)
     {
         os_pthread_t *from_thread;
-        extern void scheduler_active_privilege(void);
+        phys_reg_t from_sp, to_sp;
         
         from_thread = sched.current_thread;
         sched.current_thread = to_thread;
         
-        SCHEDULER_DEBUG(("frome [0x%08x] to [0x%08x]\r\n", from_thread, to_thread));
+        SCHED_DEBUG(SCHED_DEBUG_ENABLE, "from thread [0x%08x] to [0x%08x]\r\n",
+        		from_thread, to_thread);
         
-        if (to_thread->status != PTHREAD_STATE_INT && from_thread->status != PTHREAD_STATE_INT)
-            hw_context_switch((phys_reg_t)&from_thread->sp, (phys_reg_t)&to_thread->sp);
-        else if (to_thread->status == PTHREAD_STATE_INT && from_thread->status != PTHREAD_STATE_INT)
-            hw_context_switch((phys_reg_t)&from_thread->sp, (phys_reg_t)&to_thread->int_sp);
-        else if (to_thread->status != PTHREAD_STATE_INT && from_thread->status == PTHREAD_STATE_INT)
-            hw_context_switch((phys_reg_t)&from_thread->int_sp, (phys_reg_t)&to_thread->sp);
-        else if (to_thread->status == PTHREAD_STATE_INT && from_thread->status == PTHREAD_STATE_INT)
-            hw_context_switch((phys_reg_t)&from_thread->int_sp, (phys_reg_t)&to_thread->int_sp);
+        if (to_thread->status == PTHREAD_STATE_INT)
+        	to_sp = (phys_reg_t)&to_thread->int_sp;
+        else
+        	to_sp = (phys_reg_t)&to_thread->sp;
+
+        if (from_thread->status == PTHREAD_STATE_INT)
+        	from_sp = (phys_reg_t)&from_thread->int_sp;
+        else
+        	from_sp = (phys_reg_t)&from_thread->sp;
         
-        SCHEDULER_DEBUG(("thread switched.\r\n"));
+        hw_context_switch(from_sp, to_sp);
+
+        SCHED_DEBUG(SCHED_DEBUG_ENABLE, "thread switched.\r\n");
     }
     
-    /* recover the system or usr interrupt status */
+    /* recover the system or user interrupt status */
     hw_interrupt_recover(temp);
 }
 
 /**
  * This function will wake up the sleeping thread if it is timeout
  */
-INLINE void sched_wakeup_thread(void)
+INLINE void sched_wakeup_sleep_thread(void)
 {
-    os_pthread_t *thread, *old_thread; 
-    
-    LIST_FOR_EACH_ENTRY(old_thread, 
+    os_pthread_t *pthread;
+
+    LIST_FOR_EACH_ENTRY(pthread,
                         &sched.thread_sleep_list,
                         os_pthread_t,
                         list)
-    {       
+    {
         /* active the suspend thread and put it on ready group */
-        old_thread->sleep_ticks--;
-            
+    	pthread->sleep_ticks--;
+
         /* check the sleeping time */
-        if (!old_thread->sleep_ticks)
+        if (!pthread->sleep_ticks)
         {
-            thread = old_thread;
-          
-            /* get the prev thread */ 
-            old_thread = LIST_TAIL_ENTRY(&thread->list, os_pthread_t, list);
-            
-            /* wakeup the thread */
-            sched_set_thread_ready(thread);
+        	os_pthread_t *old_thread = pthread;
+
+            /* get the previous thread */
+        	pthread = LIST_TAIL_ENTRY(&pthread->list, os_pthread_t, list);
+
+            /* wake up the thread */
+            sched_set_thread_ready(old_thread);
         }
-    }  
+    }
 }
 
 /**
-  * This function will wake up the sleeping thread if it is timeout
-  */
+ * This function will wake up the sleeping thread if it is timeout
+ */
 INLINE void sched_cpu_usage(void)
 {
     os_pthread_t *thread = PTHREAD_POINT(get_current_thread()); 
 
     sched.usage.cur_ticks++;
     
-    /* count the ticks when the cpu is running */
+    /* count the ticks when the CPU is running */
     if (PTHREAD_TYPE_IDLE != thread->type)
-    {
-    	sched.usage.run_count += (1000 / RTOS_SYS_TICK_PERIOD);
-    }
+    	sched.usage.run_count += SCHED_PERIOD / RTOS_SYS_TICK_PERIOD;
+
+    /* when ticks is overflow, compute the CPU usage  */
     if (sched.usage.cur_ticks >= sched.usage.min_ticks)
     {
     	sched.usage.usage = sched.usage.run_count / sched.usage.min_ticks;
@@ -247,16 +250,16 @@ INLINE void sched_cpu_usage(void)
 }
 
 /**
-  * This function will check if the highest priority of thread scheduler changed
-  */
+ * This function will check if the highest priority of thread scheduler changed
+ */
 INLINE void sched_proc_current_thread(void)
-{   
+{
     --sched.current_thread->cur_ticks;
     if (!sched.current_thread->cur_ticks)
     {
-        /* remove the thread from the thread-ready group */
+        /* remove the thread from the thread-ready group head and insert it to tail */
         sched_set_thread_ready(sched.current_thread);
-    }  
+    }
 }
 
 /**
@@ -270,31 +273,32 @@ void sched_proc(void)
     
     temp = hw_interrupt_suspend();
     
-    /* check and wakeup the sleeping thread */
-    sched_wakeup_thread();
-    
+    /* check and handle current thread */
     sched_proc_current_thread();
+
+    /* check and wake up the sleeping thread */
+    sched_wakeup_sleep_thread();
+
+    sched_switch_thread();
     
-    sched_run();
-    
-    sched_cpu_usage();
+    sched_proc_cpu_usage();
     
     hw_interrupt_recover(temp);
 }
 
 /**
- * This function will init the system scheduler
+ * This function will initialize the system scheduler
  *
- * @return the result of initing the scheduler
+ * @return the result of initialization the scheduler
  */
-err_t sched_init(void)
+void sched_init(void)
 {
     int i;
     
     /* clear the scheduler structure */
     memset(&sched, 0, sizeof(struct sched));
     
-    /* init all list of scheduler */
+    /* initialize all list of scheduler */
     for( i = 0; i < PTHREAD_PRIORITY_MAX + 1; i++ )
     {
         list_init( &sched.thread_ready_table[i] );
@@ -303,17 +307,11 @@ err_t sched_init(void)
     list_init(&sched.thread_sleep_list);
     list_init(&sched.thread_delete_list);
     
-    /* set cpu usage remark cycle */
-    sched.usage.min_ticks = SCHED_CYCLE / RTOS_SYS_TICK_PERIOD;
-    
-#if USING_KERNEL_SECTION
-    scheduler_privilege_mode = 1;
-#endif
-    
-    return 0;
+    /* set CPU usage remark period */
+    sched.usage.min_ticks = SCHED_PERIOD / RTOS_SYS_TICK_PERIOD;
 }
 
-/*
+/**
  * This function will insert the thread into the systme register list
  */
 void sched_insert_thread(os_pthread_t *thread)
@@ -361,7 +359,7 @@ void sched_set_thread_suspend(os_pthread_t *thread)
     thread->status = PTHREAD_STATE_SUSPEND;
 }
 
-/*
+/**
  * his function will let the thread sleep
  */
 void sched_set_thread_sleep(os_pthread_t *thread)
@@ -374,7 +372,7 @@ void sched_set_thread_sleep(os_pthread_t *thread)
     thread->status = PTHREAD_STATE_SLEEP;
 }
 
-/*
+/**
  * This function will let the thread closed
  */
 void sched_set_thread_close(os_pthread_t *thread)
@@ -386,7 +384,7 @@ void sched_set_thread_close(os_pthread_t *thread)
     thread->status = PTHREAD_STATE_CLOSED;
 }
 
-/*
+/**
  * This function will reclaim the thread closed
  */
 void sched_reclaim_thread(os_pthread_t *thread)
@@ -419,14 +417,14 @@ err_t sched_delete_thread(os_pthread_t *thread)
   
     /* suspend the hardware interrupt for atomic operation */
     temp = hw_interrupt_suspend();
-    
-    sched_set_thread_close(thread);
+
     list_remove_node(&thread->tlist);
+
     sched_reclaim_thread(thread);
-    
+
     hw_interrupt_recover(temp);
     
-    sched_run();
+    sched_switch_thread();
   
     return 0;
 }
@@ -447,7 +445,7 @@ void sched_yield(void)
        
     hw_interrupt_recover(temp);
     
-    sched_run();
+    sched_switch_thread();
 }
 
 /**
@@ -519,7 +517,7 @@ int __sched_report_signal(os_pthread_t *thread,
     phys_reg_t temp;
     
     if (thread->status == PTHREAD_STATE_INT)
-        return 0;
+        return -EINVAL;
   
     temp = hw_interrupt_suspend();
     
@@ -527,7 +525,7 @@ int __sched_report_signal(os_pthread_t *thread,
     
     sched_set_thread_int(thread);
     
-    sched_run();
+    sched_switch_thread();
   
     hw_interrupt_recover(temp);
     

@@ -232,7 +232,7 @@ unsigned int msleep(unsigned int milliseconds)
     current_pthread->sleep_ticks = (milliseconds / RTOS_SYS_TICK_PERIOD) ? milliseconds / RTOS_SYS_TICK_PERIOD : 1;
     sched_set_thread_sleep(current_pthread);
     
-    sched_run();
+    sched_switch_thread();
     
     hw_interrupt_recover(temp);
     

@@ -12,19 +12,25 @@
 #include "debug.h"
 #include "errno.h"
 
-#define IDLE_STACK_SIZE              256
+#ifndef IDLE_STACK_SIZE
+    #define IDLE_STACK_SIZE 256
+#endif
 
 /*@{*/   
-   
+
+/**
+ * It has no necessary to clear the block memory, and you may put it
+ * at the place of kernel.
+ */
 NO_INIT static char idle_stack[IDLE_STACK_SIZE] KERNEL_SECTION;
 
 /*@}*/
 
 /*@{*/
 
-/*
- * the function is system idle thread, it has the lowest priority in the POSIX-RTOS,
- * when all thread is suspend it will be schedulered to run.
+/**
+ * The function is the entry of system idle thread, it has the lowest
+ * priority in the POSIX-RTOS, when all thread is suspend it will run.
  *
  * @param p user private point
  */
@@ -35,7 +41,7 @@ void* idle_thread_entry(void *p)
 }
 
 /*
- * the function will init and start the thread of idle function
+ * the function will initialize and start the thread of idle function
  *
  * @return the result
  */

@@ -21,42 +21,48 @@
 #endif
    
 /*@{*/    
-   
+
+static struct pthread_mutex_t sigevent_mutex;
 static struct sigevent_list sigevent_table[SIG_EVENT_TABLE];
 
 /*@}*/
 
 /*
- * __sigevent_alloc - alloc a free sigevent block
+ * __sigevent_alloc - alloc a free signal event block
  *
- * return the free sigevent block point
+ * return the free signal event block point
  */
 INLINE struct sigevent_list *__sigevent_alloc(void)
 {
     int i;
+    struct sigevent_list *sigevent = NULL;
     
+    pthread_mutex_lock(&sigevent_mutex);
+
     for (i = 0; i < SIG_EVENT_TABLE; i++)
     {
         if (!sigevent_table[i].sigevent.flag)
         {
             sigevent_table[i].sigevent.flag = 1;
-            
-            return &sigevent_table[i];
+            sigevent = &sigevent_table[i];
+            break;
         }
     }
     
-    return NULL;
+    pthread_mutex_unlock(&sigevent_mutex);
+
+    return sigevent;
 }
 
 /*
- * __sigevent_free - free sigevent block
+ * __sigevent_free - free signal event block
  */
 INLINE void __sigevent_free(struct sigevent_list *sigevent)
 {
     sigevent->sigevent.flag = 0;
 }
 
-/*
+/**
  * __sigevent_handle - handle the thread signal queue data
  */
 static void* __sigevent_handle(void *arg)
@@ -77,9 +83,7 @@ static void* __sigevent_handle(void *arg)
                             list)
         {
             if (sig->sigevent.sigev_signo == sigevent->sigevent.sigev_signo)
-            {
                 sig->sigevent.sigev_notify_function(sigevent->sigevent.sigev_value);
-            }
         }
         
         __sigevent_free(sigevent);
@@ -97,13 +101,13 @@ static void* __sigevent_handle(void *arg)
  * @param sigevent the signal event point
  *
  */
-INLINE void __sigevent_report(os_pthread_t *pthread, struct sigevent_list *sigevent)
+INLINE void __sigevent_report(os_pthread_t *thread, struct sigevent_list *sigevent)
 {
     phys_reg_t temp = hw_interrupt_suspend();
   
-    list_insert_tail(&pthread->sigevent_list, &sigevent->list);
+    list_insert_tail(&thread->sigevent_list, &sigevent->list);
     
-    __sched_report_signal(pthread, __sigevent_handle, pthread);
+    __sched_report_signal(thread, __sigevent_handle, thread);
     
     hw_interrupt_recover(temp);
 }
@@ -140,6 +144,9 @@ sighandler_t signal (int signum, sighandler_t handler)
     return handler;
 }
 
+/**
+ *
+ */
 int sigqueue (pid_t pid, int signo, const union sigval value)
 {
     os_pthread_t *pthread;
@@ -156,4 +163,12 @@ int sigqueue (pid_t pid, int signo, const union sigval value)
     __sigevent_report(pthread, sigevent);
     
     return 0;
+}
+
+/**
+ *
+ */
+void signal_init(void)
+{
+	pthread_mutex_init(&sigevent_mutex, NULL);
 }

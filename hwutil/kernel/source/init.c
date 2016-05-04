@@ -17,6 +17,7 @@
 #include "idle.h"
 #include "input.h"
 #include "stdlib.h"
+#include "signal.h"
    
 #include "ipport.h"
 #include "shell.h"
@@ -71,6 +72,17 @@ static void rtos_low_level_init(void)
 }
 
 /*
+ * the function will initialize the driver for kernel and device
+ */
+static void rtos_driver_init(void)
+{
+    ASSERT_KERNEL(!input_init());
+#if USING_DISK_PORT
+    ASSERT_KERNEL(!diskio_port_init());
+#endif
+}
+
+/*
  * the function will init the kernel
  */
 static void rtos_kernel_init(void)
@@ -80,27 +92,20 @@ static void rtos_kernel_init(void)
   
     HEAP_MEM_INIT();
     
-    ASSERT_KERNEL(!sched_init());
+    sched_init();
+    signal_init();
+
     ASSERT_KERNEL(!timer_init());
     ASSERT_KERNEL(!stdobj_init());
          
     ASSERT_KERNEL(!shell_init());
     ASSERT_KERNEL(!ipport_system_init());
+
+    rtos_driver_init();
 }
 
 /*
- * the function will init the driver for kernel and device
- */
-static void rtos_driver_init(void)
-{ 
-    ASSERT_KERNEL(!input_init());
-#if USING_DISK_PORT
-    ASSERT_KERNEL(!diskio_port_init());
-#endif
-}
-
-/*
- * the function will init the hal
+ * the function will initialize the HAL
  */
 static void rtos_hal_init(void)
 {
@@ -110,7 +115,7 @@ static void rtos_hal_init(void)
 }
 
 /*
- * the function will init the idle thread
+ * the function will initialize the idle thread
  */
 static void rtos_idle_init(void)
 {   
@@ -118,7 +123,7 @@ static void rtos_idle_init(void)
 }
 
 /*
- * the function will init the application thread
+ * the function will initialize the application program
  */
 static void rtos_app_init(void)
 {
@@ -145,8 +150,6 @@ void rtos_run(void)
     rtos_low_level_init();
     
     rtos_kernel_init();
-    
-    rtos_driver_init();
     
     rtos_hal_init();
     
