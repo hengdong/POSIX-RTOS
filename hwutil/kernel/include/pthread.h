@@ -33,6 +33,8 @@ struct sched_param
   
 #define PTHREAD_PRIORITY_MIN      0
 #define PTHREAD_PRIORITY_MAX      31
+
+#define PTHREAD_READY_GROUP_MAX   PTHREAD_PRIORITY_MAX + 1
   
     pthread_type_t          type;
     

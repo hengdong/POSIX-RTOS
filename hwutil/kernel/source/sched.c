@@ -22,14 +22,8 @@
     if (level > SCHED_DEBUG_LEVEL) \
         printk(__VA_ARGS__);
 
-#define SCHEDULER_IS_LOCKED      1
-#define SCHEDULER_IS_UNLOCKED    0
-
-/******************************************************************************/
-
-#define SCHED_LOCK_PROC() \
-    if (SCHEDULER_IS_LOCKED == sched.locked) \
-        return;
+#define SCHED_IS_LOCKED      1
+#define SCHED_IS_UNLOCKED    0
 
 /******************************************************************************/
 
@@ -50,7 +44,7 @@ struct usage
 struct sched
 {
     os_u32              thread_ready_group;
-    list_t              thread_ready_table[PTHREAD_PRIORITY_MAX + 1];
+    list_t              thread_ready_table[PTHREAD_READY_GROUP_MAX];
     
     list_t              thread_sleep_list;
     list_t              thread_delete_list;
@@ -176,7 +170,7 @@ void sched_switch_thread(void)
         sched.current_thread = to_thread;
         
         SCHED_DEBUG(SCHED_DEBUG_ENABLE, "from thread [0x%08x] to [0x%08x]\r\n",
-        		from_thread, to_thread);
+        									from_thread, to_thread);
         
         if (to_thread->status == PTHREAD_STATE_INT)
         	to_sp = (phys_reg_t)&to_thread->int_sp;
@@ -269,7 +263,9 @@ void sched_proc(void)
 {
     phys_reg_t temp;
     
-    SCHED_LOCK_PROC();
+    /* if the scheduler is lock, return immediately */
+    if (SCHEDIS_LOCKED == sched.locked)
+        return;
     
     temp = hw_interrupt_suspend();
     
@@ -279,8 +275,10 @@ void sched_proc(void)
     /* check and wake up the sleeping thread */
     sched_wakeup_sleep_thread();
 
+    /* switch to the thread which has the highest priority */
     sched_switch_thread();
     
+    /* compute the CPU usage */
     sched_proc_cpu_usage();
     
     hw_interrupt_recover(temp);
@@ -299,7 +297,7 @@ void sched_init(void)
     memset(&sched, 0, sizeof(struct sched));
     
     /* initialize all list of scheduler */
-    for( i = 0; i < PTHREAD_PRIORITY_MAX + 1; i++ )
+    for( i = 0; i < PTHREAD_READY_GROUP_MAX; i++ )
     {
         list_init( &sched.thread_ready_table[i] );
     }
@@ -312,7 +310,9 @@ void sched_init(void)
 }
 
 /**
- * This function will insert the thread into the systme register list
+ * This function will insert the thread into the global thread list
+ *
+ * @param thread the thread point to be registered
  */
 void sched_insert_thread(os_pthread_t *thread)
 { 
@@ -321,8 +321,9 @@ void sched_insert_thread(os_pthread_t *thread)
 }
 
 /**
- * This function will insert the thread into the thread-ready list and set the
- * group
+ * This function will insert the thread into the thread-ready list and set the group
+ *
+ * @param thread the thread point to be handled
  */
 void sched_set_thread_ready(os_pthread_t *thread)
 { 
@@ -336,6 +337,8 @@ void sched_set_thread_ready(os_pthread_t *thread)
 /**
  * This function will insert the thread into the thread-ready list and set the
  * status of the thread to be interruptible
+ *
+ * @param thread the thread point to be handled
  */
 void sched_set_thread_int(os_pthread_t *thread)
 { 
@@ -349,6 +352,8 @@ void sched_set_thread_int(os_pthread_t *thread)
 /**
  * This function will suspend the thread and move from the thread-ready table 
  * and reset the group scheduler_suspend_thread
+ *
+ * @param thread the thread point to be handled
  */
 void sched_set_thread_suspend(os_pthread_t *thread)
 { 
@@ -361,6 +366,8 @@ void sched_set_thread_suspend(os_pthread_t *thread)
 
 /**
  * his function will let the thread sleep
+ *
+ * @param thread the thread point to be handled
  */
 void sched_set_thread_sleep(os_pthread_t *thread)
 {
@@ -374,6 +381,8 @@ void sched_set_thread_sleep(os_pthread_t *thread)
 
 /**
  * This function will let the thread closed
+ *
+ * @param thread the thread point to be handled
  */
 void sched_set_thread_close(os_pthread_t *thread)
 {
@@ -386,6 +395,8 @@ void sched_set_thread_close(os_pthread_t *thread)
 
 /**
  * This function will reclaim the thread closed
+ *
+ * @param thread the thread point to be handled
  */
 void sched_reclaim_thread(os_pthread_t *thread)
 {
@@ -407,7 +418,7 @@ os_pthread_t* get_current_thread(void)
 /**
   * This function will delete the thread from the scheduler table
   *
-  * @param thread the target thread
+  * @param thread the thread point to be handled
   *
   * return the result
   */
@@ -418,12 +429,14 @@ err_t sched_delete_thread(os_pthread_t *thread)
     /* suspend the hardware interrupt for atomic operation */
     temp = hw_interrupt_suspend();
 
+    /* remove the thread from the global thread group list */
     list_remove_node(&thread->tlist);
 
+    /* remove the thread from the ready thread group list */
     sched_reclaim_thread(thread);
 
     hw_interrupt_recover(temp);
-    
+
     sched_switch_thread();
   
     return 0;
@@ -441,6 +454,8 @@ void sched_yield(void)
     /* suspend the hardware interrupt for atomic operation */
     temp = hw_interrupt_suspend();
     
+    /* remove the current thread from the ready thread
+       and put it to the tail of the ready group */
     sched_set_thread_ready(get_current_thread());
        
     hw_interrupt_recover(temp);
@@ -509,6 +524,10 @@ void sched_status_report(void)
 
 /**
   * the function will report the current thread
+  *
+  * @param thread the thread point to be handled
+  * @param start_routine the thread entry function point
+  * @param arg the param of the thread
   */
 int __sched_report_signal(os_pthread_t *thread,
                           void *(*start_routine)(void*), 
