@@ -8,7 +8,7 @@ http://www.freesoft.org/CIE/Topics/ssl-draft/3-SPEC.HTM
 
 struct __ssl_msg {
 	uint8_t msg_type;
-	uint24_t length;
+	uint24_t length; //body bytes
 	select (msg_type): __body {
 		1. client hello(client->server) {
 			struct __protocol_version {
@@ -64,7 +64,7 @@ struct __ssl_msg {
 		3. 	client key exchange message (client->server){
 				select (exchage_algorithm): __exchange_key {
 					1. RSA {
-						uint16_t secret_bytes; // encrypt secret
+						uint16_t secret_bytes; // RSA encrypt secret
 						struct __secret {
 							struct __protocol_version {
 								uint8_t major;
@@ -77,19 +77,43 @@ struct __ssl_msg {
 			}
 		}
 
-		4. certificate request (server->client){
+		4. certificate request (server->client) {
 
 
+		}
+
+		5. certification verify (client->server) {
+			uint16_t verify_bytes;
+			struct __secret {
+				uint8_t verify_data[...]; //RSA encrypt
+			}secret;
 		}
 	}body;
 }ssl_msg;
 
- */
+*/
+
+enum __ssl_msg {
+	HELLO_REQUEST = 0, 			//s->c
+	CLIENT_HELLO,      			//c->s
+	SERVER_HELLO,      			//s->c
+	CERTIFICATE = 11,  			//s->c
+	SERVER_KEY_EXCHANGE,		//s->c
+	CERTIFICATE_REQUEST,		//c->s
+	SERVER_HELLO_DONE,			//s->c
+	CERTIFICATE_VERIFY,			//c->s
+	CLIENT_KEY_EXCHANGE,		//c->s
+	FINISH = 20					//s->c
+};
+typedef enum __ssl_msg ssl_msg_t;
 
 struct __ssl {
+#define SSL_MSG_HEAD_BYTES	4
+
 	u8 msg_type;
 	u8 protocol;
 };
+typedef struct __ssl ssl_t;
 
 #endif
 
