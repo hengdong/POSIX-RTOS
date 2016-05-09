@@ -223,7 +223,7 @@ INLINE void sched_wakeup_sleep_thread(void)
 /**
  * This function will wake up the sleeping thread if it is timeout
  */
-INLINE void sched_cpu_usage(void)
+INLINE void sched_proc_cpu_usage(void)
 {
     os_pthread_t *thread = PTHREAD_POINT(get_current_thread()); 
 
@@ -264,7 +264,7 @@ void sched_proc(void)
     phys_reg_t temp;
     
     /* if the scheduler is lock, return immediately */
-    if (SCHEDIS_LOCKED == sched.locked)
+    if (SCHED_IS_LOCKED == sched.locked)
         return;
     
     temp = hw_interrupt_suspend();
@@ -476,7 +476,7 @@ os_u32 sched_suspend(void)
     temp = hw_interrupt_suspend();
   
     lcoked = sched.locked;
-    sched.locked = SCHEDULER_IS_LOCKED;
+    sched.locked = SCHED_IS_LOCKED;
   
     hw_interrupt_recover(temp);
   

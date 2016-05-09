@@ -17,7 +17,7 @@
 #define HAL_DEBUG_LEVEL 0
 #define HAL_DEBUG_LEVEL_ENABLE 0
 #define HAL_DEBUG(level, ...) \
-    if (level > __HAL_DEBUG_LEVEL) \
+    if (level > HAL_DEBUG_LEVEL) \
         printk(__VA_ARGS__);
 
 /*@}*/

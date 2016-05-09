@@ -16,27 +16,27 @@ NVIC_PENDSVSET  EQU     0x10000000               ; value to trigger PendSV excep
     REQUIRE8
     PRESERVE8
 
-    IMPORT hz_thread_switch_interrupt_flag
-    IMPORT hz_interrupt_from_thread
-    IMPORT hz_interrupt_to_thread
+    IMPORT thread_switch_interrupt_flag
+    IMPORT interrupt_from_thread
+    IMPORT interrupt_to_thread
 
-    EXPORT hz_hw_context_switch_interrupt
-    EXPORT hz_hw_context_switch
-hz_hw_context_switch_interrupt:
-hz_hw_context_switch:
-    ; set hz_thread_switch_interrupt_flag to 1
-    LDR     r2, =hz_thread_switch_interrupt_flag
+    EXPORT hw_context_switch_interrupt
+    EXPORT hw_context_switch
+hw_context_switch_interrupt:
+hw_context_switch:
+    ; set thread_switch_interrupt_flag to 1
+    LDR     r2, =thread_switch_interrupt_flag
     LDR     r3, [r2]
     CMP     r3, #1
     BEQ     _reswitch
     MOV     r3, #1
     STR     r3, [r2]
 
-    LDR     r2, =hz_interrupt_from_thread   ; set hz_interrupt_from_thread
+    LDR     r2, =interrupt_from_thread   ; set interrupt_from_thread
     STR     r0, [r2]
 
 _reswitch
-    LDR     r2, =hz_interrupt_to_thread     ; set hz_interrupt_to_thread
+    LDR     r2, =interrupt_to_thread     ; set interrupt_to_thread
     STR     r1, [r2]
 
     ; set the PendSV exception priority
@@ -61,16 +61,16 @@ PendSV_Handler:
     MRS     r2, PRIMASK
     CPSID   I
 
-    ; get hz_thread_switch_interrupt_flag
-    LDR     r0, =hz_thread_switch_interrupt_flag
+    ; get thread_switch_interrupt_flag
+    LDR     r0, =thread_switch_interrupt_flag
     LDR     r1, [r0]
     CBZ     r1, pendsv_exit         ; pendsv already handled
 
-    ; clear hz_thread_switch_interrupt_flag to 0
+    ; clear thread_switch_interrupt_flag to 0
     MOV     r1, #0x00
     STR     r1, [r0]
 
-    LDR     r0, =hz_interrupt_from_thread
+    LDR     r0, =interrupt_from_thread
     LDR     r1, [r0]
     CBZ     r1, switch_to_thread    ; skip register save at the first time
 
@@ -99,7 +99,7 @@ push_flag
     STR     r1, [r0]                ; update from thread stack pointer
 
 switch_to_thread
-    LDR     r1, =hz_interrupt_to_thread
+    LDR     r1, =interrupt_to_thread
     LDR     r1, [r1]
     LDR     r1, [r1]                ; load thread stack pointer
 
@@ -132,12 +132,12 @@ return_without_fpu
     BX      lr
 
 ;/*
-; * void hz_hw_context_switch_to(hz_uint32 to);
+; * void hw_context_switch_to(hz_uint32 to);
 ; * r0 --> to
 ; */
-    EXPORT hz_hw_context_switch_to
-hz_hw_context_switch_to:
-    LDR     r1, =hz_interrupt_to_thread
+    EXPORT hw_context_switch_to
+hw_context_switch_to:
+    LDR     r1, =interrupt_to_thread
     STR     r0, [r1]
     
 #if defined( __ARMVFP__ )
@@ -147,12 +147,12 @@ hz_hw_context_switch_to:
 #endif    
 
     ; set from thread to 0
-    LDR     r1, =hz_interrupt_from_thread
+    LDR     r1, =interrupt_from_thread
     MOV     r0, #0x0
     STR     r0, [r1]
 
     ; set interrupt flag to 1
-    LDR     r1, =hz_thread_switch_interrupt_flag
+    LDR     r1, =thread_switch_interrupt_flag
     MOV     r0, #1
     STR     r0, [r1]
 
@@ -177,14 +177,14 @@ hz_hw_context_switch_to:
     NOP
     NOP
 
-    IMPORT hz_hard_fault_exception
+    IMPORT hard_fault_exception
     EXPORT HardFault_Handler
 HardFault_Handler:
 
     ; get current context
     MRS     r0, psp                 ; get fault thread stack pointer
     PUSH    {lr}
-    BL      hz_hard_fault_exception
+    BL      hard_fault_exception
     POP     {lr}
 
     ORR     lr, lr, #0x04
@@ -193,28 +193,28 @@ HardFault_Handler:
     ; never reach here!
 
 ; compatible with old version
-    EXPORT hz_hw_interrupt_thread_switch
-hz_hw_interrupt_thread_switch:
+    EXPORT hw_interrupt_thread_switch
+hw_interrupt_thread_switch:
     BX      lr
     
-  EXPORT hz_hw_interrupt_disable
-hz_hw_interrupt_disable:
+  EXPORT hw_interrupt_disable
+hw_interrupt_disable:
         CPSID   I
         BX      LR
         
-  EXPORT hz_hw_interrupt_enable
-hz_hw_interrupt_enable:
+  EXPORT hw_interrupt_enable
+hw_interrupt_enable:
         CPSIE   I
         BX      LR
         
-  EXPORT hz_hw_interrupt_suspend          
-hz_hw_interrupt_suspend:
+  EXPORT hw_interrupt_suspend          
+hw_interrupt_suspend:
         MRS     R0,     PRIMASK
         CPSID   I
         BX      LR
      
-  EXPORT hz_hw_interrupt_recover    
-hz_hw_interrupt_recover:
+  EXPORT hw_interrupt_recover    
+hw_interrupt_recover:
         MSR     PRIMASK,   R0
         BX      LR
         

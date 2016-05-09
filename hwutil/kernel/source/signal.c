@@ -22,7 +22,7 @@
    
 /*@{*/    
 
-static struct pthread_mutex_t sigevent_mutex;
+static pthread_mutex_t sigevent_mutex;
 static struct sigevent_list sigevent_table[SIG_EVENT_TABLE];
 
 /*@}*/

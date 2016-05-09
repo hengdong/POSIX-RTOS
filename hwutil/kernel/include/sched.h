@@ -3,8 +3,8 @@
 
 #include "pthread.h"
 
-err_t sched_init(void);
-void sched_run(void);
+void sched_init(void);
+void sched_switch_thread(void);
 void sched_start(void);
 
 os_u32 sched_suspend(void);

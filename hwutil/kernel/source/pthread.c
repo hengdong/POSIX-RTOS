@@ -386,7 +386,7 @@ INLINE int __pthread_mutex_lock(pthread_mutex_t *mutex) {
 			/* insert the current thread to the wait list */
 			list_insert_tail(&mutex->wait_list, &thread->list);
 
-			sched_run();
+			sched_switch_thread();
 
 			ret = -EAGAIN;
 		}
@@ -459,7 +459,7 @@ int pthread_mutex_unlock(pthread_mutex_t *mutex) {
 				os_pthread_t,
 				list) {
 			sched_set_thread_ready(thread_wait);
-			sched_run();
+			sched_switch_thread();
 			break;
 		}
 

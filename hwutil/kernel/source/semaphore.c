@@ -74,7 +74,7 @@ INLINE int __sem_wait (sem_t* sem)
 
         sched_set_thread_suspend(thread);
         list_insert_tail(&sem->wait_list, &thread->list);        
-        sched_run();
+        sched_switch_thread();
         
         ret = -EINVAL;
     }
@@ -128,7 +128,7 @@ int sem_post (sem_t* sem)
                             list)
     {
         sched_set_thread_ready(thread_wait);
-        sched_run();
+        sched_switch_thread();
         break;
     }
     

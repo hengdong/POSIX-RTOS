@@ -39,6 +39,7 @@ struct mq_msg
 {
     size_t              msg_size;
     int                 used;
+};
 typedef struct mq_msg mq_msg_t;
 
 /******************************************************************************/
@@ -97,8 +98,8 @@ mqd_t mq_open (const char *name, int flag, ...)
         if (sem_init(&mq->sem, 0, mq->mq_attr.mq_maxmsg))
             goto sem_init_failed;
 
-    pthread_mutex_init(&mq->r_mutex);
-    pthread_mutex_init(&mq->w_mutex);
+    pthread_mutex_init(&mq->r_mutex, NULL);
+    pthread_mutex_init(&mq->w_mutex, NULL);
 
     /* return the message queue address */
     return (mqd_t)mq;
