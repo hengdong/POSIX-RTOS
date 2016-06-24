@@ -87,16 +87,11 @@ void heap_mem_init(phys_addr_t begin_addr, phys_addr_t end_addr)
 {
     phys_addr_t align_begin_addr = ALIGN(begin_addr);
     phys_addr_t align_end_addr = ALIGN(end_addr);
-    
-    if ((align_end_addr - align_begin_addr) > (2 * sizeof(heap_mem_t) + MALLOC_MIN_SIZE))
-    {
-        mem_total_size = align_end_addr - align_begin_addr - 2 * sizeof(heap_mem_t);
-    }
-    else
-    {
+   
+    if ((align_end_addr - align_begin_addr) <= (2 * sizeof(heap_mem_t) + MALLOC_MIN_SIZE))
         return ;
-    }
-    
+ 
+    mem_total_size = align_end_addr - align_begin_addr - 2 * sizeof(heap_mem_t);
     heap_mem_begin = (heap_mem_t *)align_begin_addr;
     heap_mem_end   = (heap_mem_t *)(align_end_addr - sizeof(heap_mem_t));
     

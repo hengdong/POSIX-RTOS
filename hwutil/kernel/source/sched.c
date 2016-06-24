@@ -196,12 +196,13 @@ void sched_switch_thread(void)
  */
 INLINE void sched_wakeup_sleep_thread(void)
 {
-    os_pthread_t *pthread;
+    os_pthread_t *pthread, *p;
 
-    LIST_FOR_EACH_ENTRY(pthread,
-                        &sched.thread_sleep_list,
-                        os_pthread_t,
-                        list)
+    LIST_FOR_EACH_ENTRY_SAFE(pthread, 
+                             p,
+                             &sched.thread_sleep_list,
+                             os_pthread_t,
+                             list)
     {
         /* active the suspend thread and put it on ready group */
     	pthread->sleep_ticks--;
@@ -209,13 +210,8 @@ INLINE void sched_wakeup_sleep_thread(void)
         /* check the sleeping time */
         if (!pthread->sleep_ticks)
         {
-        	os_pthread_t *old_thread = pthread;
-
-            /* get the previous thread */
-        	pthread = LIST_TAIL_ENTRY(&pthread->list, os_pthread_t, list);
-
             /* wake up the thread */
-            sched_set_thread_ready(old_thread);
+            sched_set_thread_ready(pthread);
         }
     }
 }

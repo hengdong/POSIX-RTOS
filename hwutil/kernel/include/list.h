@@ -35,6 +35,12 @@ typedef struct list list_t;
          &(pos)->member != (list); \
          (pos) = LIST_NEXT_ENTRY(pos, type, member))
       
+#define LIST_FOR_EACH_ENTRY_SAFE( pos, n, list, type, member) \
+    for( (pos) = LIST_HEAD_ENTRY(list, type, member), \
+         (n) = LIST_NEXT_ENTRY(pos, type, member); \
+         &(pos)->member != (list); \
+         (pos) = (n), (n) = LIST_NEXT_ENTRY(pos, type, member))
+
 #define LIST_FOR_EACH_ENTRY_FROM_PTR(pos, head, tail, type, member) \
     for( (pos) = (head); \
          (pos) != (tail); \
